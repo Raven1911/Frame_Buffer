@@ -46,11 +46,11 @@ module tb_frame_buffer;
     ) uut (
         .clk_i(clk_i),
         .resetn_i(1'b1),
-        .wr_i(wr_i),
-        .addr_wr(addr_wr),
-        .addr_rd(addr_rd),
-        .Data_in(Data_in),
-        .Data_out(Data_out)
+        .wr0_i(wr_i),
+        .addr_wr0(addr_wr),
+        .addr_rd0(addr_rd),
+        .Data_in0(Data_in),
+        .Data_out0(Data_out)
     );
 
     // Clock generation

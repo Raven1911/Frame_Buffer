@@ -25,95 +25,319 @@ module frame_buffer#(
     parameter ADDR_WIDTH    = 32,
     parameter DATA_WIDTH    = 16,
     parameter NUMBER_BRAM   = 10,
-    parameter DEPTH_SIZE    = 1024 // size bram = (DATA_WIDTH * DEPTH_SIZE)/8 (Byte) 
-)(
+    parameter DEPTH_SIZE    = 1024, // size bram = (DATA_WIDTH * DEPTH_SIZE)/8 (Byte)
+    parameter MODE = 2      // MOD 0 SINGLE PORT READ_WRITE
+                            // MOD 1 DUAL PORT READ_WRITE
+                            // MOD 2 DUAL PORT READ / SINGLE PORT WRITE
+)(  
 
     input                               clk_i,
     input                               resetn_i,
 
-    input                               wr_i,
+    input                               wr0_i,
+    input                               wr1_i,
 
-    input           [ADDR_WIDTH-1:0]    addr_wr, //address global
-    input           [ADDR_WIDTH-1:0]    addr_rd, //address global
+    input           [ADDR_WIDTH-1:0]    addr_wr0, //address global
+    input           [ADDR_WIDTH-1:0]    addr_wr1, //address global
+    input           [ADDR_WIDTH-1:0]    addr_rd0, //address global
+    input           [ADDR_WIDTH-1:0]    addr_rd1, //address global
 
-    input           [DATA_WIDTH-1:0]    Data_in,
-    output          [DATA_WIDTH-1:0]    Data_out
+    input           [DATA_WIDTH-1:0]    Data_in0,
+    input           [DATA_WIDTH-1:0]    Data_in1,
+    output          [DATA_WIDTH-1:0]    Data_out0,
+    output          [DATA_WIDTH-1:0]    Data_out1
 
     );
 
-
-    wire            [NUMBER_BRAM-1:0]                    s_wr_in;
-    wire            [NUMBER_BRAM*ADDR_WIDTH-1:0]         s_addr_wr;  // address local for each BRAM
-    wire            [NUMBER_BRAM*ADDR_WIDTH-1:0]         s_addr_rd;  // address local for each BRAM
-    wire            [NUMBER_BRAM*DATA_WIDTH-1:0]         s_Data_in;
-    wire            [NUMBER_BRAM*DATA_WIDTH-1:0]         s_Data_out;
-    wire            [NUMBER_BRAM-1:0]                    ID_bram_selected;
-
-
-    // wire            [ADDR_WIDTH-1:0]    dff_addr_rd;
-    //delay 2 cycle read
-    // register_DFF_dvp #(
-    //     .SIZE_BITS(ADDR_WIDTH)
-    // ) DFF_DVP_RX (
-    //     .clk_i(clk_i),
-    //     .resetn_i(resetn_i),
-    //     .D_i(addr_rd),
-    //     .Q_o(dff_addr_rd)
-    // );
-
-    decoder_frame_buffer#(
-        .ADDR_WIDTH(ADDR_WIDTH),
-        .DATA_WIDTH(DATA_WIDTH),
-        .NUMBER_BRAM(NUMBER_BRAM),
-        .DEPTH_SIZE(DEPTH_SIZE)
-    )decoder_frame_buffer_uut(
-        //input mem
-        .wr_i(wr_i),
-        .addr_wr(addr_wr),
-        .addr_rd(addr_rd),
-        .Data_in(Data_in),
-    //decoder port for each bram
-        .s_wr_in_o(s_wr_in), 
-        .s_addr_wr_o(s_addr_wr),
-        .s_addr_rd_o(s_addr_rd),
-        .s_Data_in_o(s_Data_in),
-        .ID_bram_selected_rd_o(ID_bram_selected)
-    );
-
-    // gen block ram
-    genvar bram_count;
     generate
-        for (bram_count = 0; bram_count < NUMBER_BRAM; bram_count = bram_count + 1) begin : g_bram
-            wire [ADDR_WIDTH-1:0]  aw = s_addr_wr [((ADDR_WIDTH*bram_count)+ADDR_WIDTH-1) -: ADDR_WIDTH];
-            wire [ADDR_WIDTH-1:0]  ar = s_addr_rd [((ADDR_WIDTH*bram_count)+ADDR_WIDTH-1) -: ADDR_WIDTH];
-            wire [DATA_WIDTH-1:0]  din = s_Data_in [((DATA_WIDTH*bram_count)+DATA_WIDTH-1) -: DATA_WIDTH];
-            wire                   we  = s_wr_in[bram_count];
+        if (MODE == 0) begin
+            wire            [NUMBER_BRAM-1:0]                    s_wr_in;
+            wire            [NUMBER_BRAM*ADDR_WIDTH-1:0]         s_addr_wr;  // address local for each BRAM
+            wire            [NUMBER_BRAM*ADDR_WIDTH-1:0]         s_addr_rd;  // address local for each BRAM
+            wire            [NUMBER_BRAM*DATA_WIDTH-1:0]         s_Data_in;
+            wire            [NUMBER_BRAM*DATA_WIDTH-1:0]         s_Data_out;
+            wire            [NUMBER_BRAM-1:0]                    ID_bram_selected;
 
-            block_ram_frame_buffer #(
-                .ADDR_WIDTH (ADDR_WIDTH),   // có thể giảm xuống $clog2(DEPTH_SIZE) nếu muốn gọn địa chỉ local
-                .DATA_WIDTH (DATA_WIDTH),
-                .DEPTH_SIZE (DEPTH_SIZE)
-            ) u_bram (
-                .clk_i    (clk_i),
-                .wr_i     (we),
-                .addr_wr  (aw   - (DEPTH_SIZE*bram_count)),
-                .addr_rd  (ar   - (DEPTH_SIZE*bram_count)),
-                .Data_in  (din),
-                .Data_out (s_Data_out[((DATA_WIDTH*bram_count)+DATA_WIDTH-1) -: DATA_WIDTH])
+            
+
+
+
+            decoder_frame_buffer#(
+                .ADDR_WIDTH(ADDR_WIDTH),
+                .DATA_WIDTH(DATA_WIDTH),
+                .NUMBER_BRAM(NUMBER_BRAM),
+                .DEPTH_SIZE(DEPTH_SIZE)
+            )decoder_frame_buffer_uut(
+                //input mem
+                .wr_i(wr0_i),
+                .addr_wr(addr_wr0),
+                .addr_rd(addr_rd0),
+                .Data_in(Data_in0),
+            //decoder port for each bram
+                .s_wr_in_o(s_wr_in), 
+                .s_addr_wr_o(s_addr_wr),
+                .s_addr_rd_o(s_addr_rd),
+                .s_Data_in_o(s_Data_in),
+                .ID_bram_selected_rd_o(ID_bram_selected)
             );
+
+            // gen block ram
+            genvar bram_count;
+            // generate
+                for (bram_count = 0; bram_count < NUMBER_BRAM; bram_count = bram_count + 1) begin : g_bram
+                    wire [ADDR_WIDTH-1:0]  aw = s_addr_wr [((ADDR_WIDTH*bram_count)+ADDR_WIDTH-1) -: ADDR_WIDTH];
+                    wire [ADDR_WIDTH-1:0]  ar = s_addr_rd [((ADDR_WIDTH*bram_count)+ADDR_WIDTH-1) -: ADDR_WIDTH];
+                    wire [DATA_WIDTH-1:0]  din = s_Data_in [((DATA_WIDTH*bram_count)+DATA_WIDTH-1) -: DATA_WIDTH];
+                    wire                   we  = s_wr_in[bram_count];
+
+                    block_ram_frame_buffer0 #(
+                        .ADDR_WIDTH (ADDR_WIDTH),   // có thể giảm xuống $clog2(DEPTH_SIZE) nếu muốn gọn địa chỉ local
+                        .DATA_WIDTH (DATA_WIDTH),
+                        .DEPTH_SIZE (DEPTH_SIZE)
+                    ) u_bram (
+                        .clk_i    (clk_i),
+                        .wr_i     (we),
+                        .addr_wr  (aw   - (DEPTH_SIZE*bram_count)),
+                        .addr_rd  (ar   - (DEPTH_SIZE*bram_count)),
+                        .Data_in  (din),
+                        .Data_out (s_Data_out[((DATA_WIDTH*bram_count)+DATA_WIDTH-1) -: DATA_WIDTH])
+                    );
+                end
+            // endgenerate
+
+            encoder_frame_buffer#(
+                .DATA_WIDTH(DATA_WIDTH),
+                .NUMBER_BRAM(NUMBER_BRAM)
+            )encoder_frame_buffer_uut(
+                .clk_i(clk_i),
+                .resetn_i(resetn_i),
+                .ID_bram_selected_rd_i(ID_bram_selected),
+                .s_Data_out_i(s_Data_out),
+                .Data_out(Data_out0)   
+            );
+            
+        end
+
+        else if (MODE == 1) begin
+            //port 0
+            wire            [NUMBER_BRAM-1:0]                    s_wr0_in;
+            wire            [NUMBER_BRAM*ADDR_WIDTH-1:0]         s_addr_wr0;  // address local for each BRAM
+            wire            [NUMBER_BRAM*ADDR_WIDTH-1:0]         s_addr_rd0;  // address local for each BRAM
+            wire            [NUMBER_BRAM*DATA_WIDTH-1:0]         s_Data_in0;
+            wire            [NUMBER_BRAM*DATA_WIDTH-1:0]         s_Data_out0;
+            wire            [NUMBER_BRAM-1:0]                    ID_bram_selected0;
+
+            //port 1
+            wire            [NUMBER_BRAM-1:0]                    s_wr1_in;
+            wire            [NUMBER_BRAM*ADDR_WIDTH-1:0]         s_addr_wr1;  // address local for each BRAM
+            wire            [NUMBER_BRAM*ADDR_WIDTH-1:0]         s_addr_rd1;  // address local for each BRAM
+            wire            [NUMBER_BRAM*DATA_WIDTH-1:0]         s_Data_in1;
+            wire            [NUMBER_BRAM*DATA_WIDTH-1:0]         s_Data_out1;
+            wire            [NUMBER_BRAM-1:0]                    ID_bram_selected1;
+
+
+
+            decoder_frame_buffer#(
+                .ADDR_WIDTH(ADDR_WIDTH),
+                .DATA_WIDTH(DATA_WIDTH),
+                .NUMBER_BRAM(NUMBER_BRAM),
+                .DEPTH_SIZE(DEPTH_SIZE)
+            )decoder_frame_buffer0_uut(
+                //input mem
+                .wr_i(wr0_i),
+                .addr_wr(addr_wr0),
+                .addr_rd(addr_rd0),
+                .Data_in(Data_in0),
+            //decoder port for each bram
+                .s_wr_in_o(s_wr0_in), 
+                .s_addr_wr_o(s_addr_wr0),
+                .s_addr_rd_o(s_addr_rd0),
+                .s_Data_in_o(s_Data_in0),
+                .ID_bram_selected_rd_o(ID_bram_selected0)
+            );
+
+            decoder_frame_buffer#(
+                .ADDR_WIDTH(ADDR_WIDTH),
+                .DATA_WIDTH(DATA_WIDTH),
+                .NUMBER_BRAM(NUMBER_BRAM),
+                .DEPTH_SIZE(DEPTH_SIZE)
+            )decoder_frame_buffer1_uut(
+                //input mem
+                .wr_i(wr1_i),
+                .addr_wr(addr_wr1),
+                .addr_rd(addr_rd1),
+                .Data_in(Data_in1),
+            //decoder port for each bram
+                .s_wr_in_o(s_wr1_in), 
+                .s_addr_wr_o(s_addr_wr1),
+                .s_addr_rd_o(s_addr_rd1),
+                .s_Data_in_o(s_Data_in1),
+                .ID_bram_selected_rd_o(ID_bram_selected1)   
+            );
+
+            // gen block ram
+            genvar bram_count;
+            // generate
+                for (bram_count = 0; bram_count < NUMBER_BRAM; bram_count = bram_count + 1) begin : g_bram
+                    wire [ADDR_WIDTH-1:0]  aw0 = s_addr_wr0 [((ADDR_WIDTH*bram_count)+ADDR_WIDTH-1) -: ADDR_WIDTH];
+                    wire [ADDR_WIDTH-1:0]  ar0 = s_addr_rd0 [((ADDR_WIDTH*bram_count)+ADDR_WIDTH-1) -: ADDR_WIDTH];
+                    wire [DATA_WIDTH-1:0]  din0 = s_Data_in0 [((DATA_WIDTH*bram_count)+DATA_WIDTH-1) -: DATA_WIDTH];
+                    wire                   we0  = s_wr0_in[bram_count];
+
+                    wire [ADDR_WIDTH-1:0]  aw1 = s_addr_wr1 [((ADDR_WIDTH*bram_count)+ADDR_WIDTH-1) -: ADDR_WIDTH];
+                    wire [ADDR_WIDTH-1:0]  ar1 = s_addr_rd1 [((ADDR_WIDTH*bram_count)+ADDR_WIDTH-1) -: ADDR_WIDTH];
+                    wire [DATA_WIDTH-1:0]  din1 = s_Data_in1 [((DATA_WIDTH*bram_count)+DATA_WIDTH-1) -: DATA_WIDTH];
+                    wire                   we1  = s_wr1_in[bram_count];
+
+                    block_ram_frame_buffer1 #(
+                        .ADDR_WIDTH (ADDR_WIDTH),   // có thể giảm xuống $clog2(DEPTH_SIZE) nếu muốn gọn địa chỉ local
+                        .DATA_WIDTH (DATA_WIDTH),
+                        .DEPTH_SIZE (DEPTH_SIZE)
+                    ) u_bram (
+                        .clk_i    (clk_i),
+                        .wr_i0     (we0),
+                        .addr_wr0  (aw0   - (DEPTH_SIZE*bram_count)),
+                        .addr_rd0  (ar0   - (DEPTH_SIZE*bram_count)),
+                        .Data_in0  (din0),
+                        .Data_out0 (s_Data_out0[((DATA_WIDTH*bram_count)+DATA_WIDTH-1) -: DATA_WIDTH]),
+
+                        .wr_i1     (we1),
+                        .addr_wr1  (aw1   - (DEPTH_SIZE*bram_count)),
+                        .addr_rd1  (ar1   - (DEPTH_SIZE*bram_count)),
+                        .Data_in1  (din1),
+                        .Data_out1 (s_Data_out1[((DATA_WIDTH*bram_count)+DATA_WIDTH-1) -: DATA_WIDTH])
+                    );
+                end
+            // endgenerate
+
+            encoder_frame_buffer#(
+                .DATA_WIDTH(DATA_WIDTH),
+                .NUMBER_BRAM(NUMBER_BRAM)
+            )encoder_frame_buffer0_uut(
+                .clk_i(clk_i),
+                .resetn_i(resetn_i),
+                .ID_bram_selected_rd_i(ID_bram_selected0),
+                .s_Data_out_i(s_Data_out0),
+                .Data_out(Data_out0)   
+            );
+
+            encoder_frame_buffer#(
+                .DATA_WIDTH(DATA_WIDTH),
+                .NUMBER_BRAM(NUMBER_BRAM)
+            )encoder_frame_buffer1_uut(
+                .clk_i(clk_i),
+                .resetn_i(resetn_i),
+                .ID_bram_selected_rd_i(ID_bram_selected1),
+                .s_Data_out_i(s_Data_out1),
+                .Data_out(Data_out1)   
+            );
+
+
+        end
+
+
+        else if (MODE == 2) begin
+            //port 0
+            wire            [NUMBER_BRAM-1:0]                    s_wr0_in;
+            wire            [NUMBER_BRAM*ADDR_WIDTH-1:0]         s_addr_wr0;  // address local for each BRAM
+            wire            [NUMBER_BRAM*ADDR_WIDTH-1:0]         s_addr_rd0;  // address local for each BRAM
+            wire            [NUMBER_BRAM*DATA_WIDTH-1:0]         s_Data_in0;
+            wire            [NUMBER_BRAM*DATA_WIDTH-1:0]         s_Data_out0;
+            wire            [NUMBER_BRAM-1:0]                    ID_bram_selected0;
+
+            //port 1
+            wire            [NUMBER_BRAM*ADDR_WIDTH-1:0]         s_addr_rd1;  // address local for each BRAM
+            wire            [NUMBER_BRAM*DATA_WIDTH-1:0]         s_Data_out1;
+            wire            [NUMBER_BRAM-1:0]                    ID_bram_selected1;
+
+
+
+            decoder_frame_buffer#(
+                .ADDR_WIDTH(ADDR_WIDTH),
+                .DATA_WIDTH(DATA_WIDTH),
+                .NUMBER_BRAM(NUMBER_BRAM),
+                .DEPTH_SIZE(DEPTH_SIZE)
+            )decoder_frame_buffer0_uut(
+                //input mem
+                .wr_i(wr0_i),
+                .addr_wr(addr_wr0),
+                .addr_rd(addr_rd0),
+                .Data_in(Data_in0),
+            //decoder port for each bram
+                .s_wr_in_o(s_wr0_in), 
+                .s_addr_wr_o(s_addr_wr0),
+                .s_addr_rd_o(s_addr_rd0),
+                .s_Data_in_o(s_Data_in0),
+                .ID_bram_selected_rd_o(ID_bram_selected0)
+            );
+
+            single_rd_ecoder_frame_buffer#(
+                .ADDR_WIDTH(ADDR_WIDTH),
+                .DATA_WIDTH(DATA_WIDTH),
+                .NUMBER_BRAM(NUMBER_BRAM),
+                .DEPTH_SIZE(DEPTH_SIZE)
+            )decoder_frame_buffer1_uut(
+                //input mem
+                .addr_rd(addr_rd1),
+            //decoder port for each bram
+                .s_addr_rd_o(s_addr_rd1),
+                .ID_bram_selected_rd_o(ID_bram_selected1)   
+            );
+
+            // gen block ram
+            genvar bram_count;
+            // generate
+                for (bram_count = 0; bram_count < NUMBER_BRAM; bram_count = bram_count + 1) begin : g_bram
+                    wire [ADDR_WIDTH-1:0]  aw0 = s_addr_wr0 [((ADDR_WIDTH*bram_count)+ADDR_WIDTH-1) -: ADDR_WIDTH];
+                    wire [ADDR_WIDTH-1:0]  ar0 = s_addr_rd0 [((ADDR_WIDTH*bram_count)+ADDR_WIDTH-1) -: ADDR_WIDTH];
+                    wire [DATA_WIDTH-1:0]  din0 = s_Data_in0 [((DATA_WIDTH*bram_count)+DATA_WIDTH-1) -: DATA_WIDTH];
+                    wire                   we0  = s_wr0_in[bram_count];  
+                    wire [ADDR_WIDTH-1:0]  ar1 = s_addr_rd1 [((ADDR_WIDTH*bram_count)+ADDR_WIDTH-1) -: ADDR_WIDTH];
+
+                    block_ram_frame_buffer2 #(
+                        .ADDR_WIDTH (ADDR_WIDTH),   // có thể giảm xuống $clog2(DEPTH_SIZE) nếu muốn gọn địa chỉ local
+                        .DATA_WIDTH (DATA_WIDTH),
+                        .DEPTH_SIZE (DEPTH_SIZE)
+                    ) u_bram (
+                        .clk_i    (clk_i),
+                        .wr_i0     (we0),
+                        .addr_wr0  (aw0   - (DEPTH_SIZE*bram_count)),
+                        .addr_rd0  (ar0   - (DEPTH_SIZE*bram_count)),
+                        .Data_in0  (din0),
+                        .Data_out0 (s_Data_out0[((DATA_WIDTH*bram_count)+DATA_WIDTH-1) -: DATA_WIDTH]),
+                        .addr_rd1  (ar1   - (DEPTH_SIZE*bram_count)),
+                        .Data_out1 (s_Data_out1[((DATA_WIDTH*bram_count)+DATA_WIDTH-1) -: DATA_WIDTH])
+                    );
+                end
+            // endgenerate
+
+            encoder_frame_buffer#(
+                .DATA_WIDTH(DATA_WIDTH),
+                .NUMBER_BRAM(NUMBER_BRAM)
+            )encoder_frame_buffer0_uut(
+                .clk_i(clk_i),
+                .resetn_i(resetn_i),
+                .ID_bram_selected_rd_i(ID_bram_selected0),
+                .s_Data_out_i(s_Data_out0),
+                .Data_out(Data_out0)   
+            );
+
+            encoder_frame_buffer#(
+                .DATA_WIDTH(DATA_WIDTH),
+                .NUMBER_BRAM(NUMBER_BRAM)
+            )encoder_frame_buffer1_uut(
+                .clk_i(clk_i),
+                .resetn_i(resetn_i),
+                .ID_bram_selected_rd_i(ID_bram_selected1),
+                .s_Data_out_i(s_Data_out1),
+                .Data_out(Data_out1)   
+            );
+
+
         end
     endgenerate
 
-    encoder_frame_buffer#(
-        .DATA_WIDTH(DATA_WIDTH),
-        .NUMBER_BRAM(NUMBER_BRAM)
-    )encoder_frame_buffer_uut(
-        .clk_i(clk_i),
-        .resetn_i(resetn_i),
-        .ID_bram_selected_rd_i(ID_bram_selected),
-        .s_Data_out_i(s_Data_out),
-        .Data_out(Data_out)   
-    );
+    
 
 
 
@@ -200,6 +424,52 @@ module decoder_frame_buffer#(
 endmodule
 
 
+
+// single port read
+module single_rd_ecoder_frame_buffer#(
+    parameter ADDR_WIDTH    = 32,
+    parameter DATA_WIDTH    = 16, //WORD_SIZE
+    parameter NUMBER_BRAM   = 16,
+    parameter DEPTH_SIZE    = 1024 // size bram = (WORD_SIZE * DEPTH_SIZE)/8 (Byte) 
+
+
+)(
+    //input mem
+    input           [ADDR_WIDTH-1:0]                              addr_rd,
+
+
+    //decoder port for each bram
+    output          [NUMBER_BRAM*ADDR_WIDTH-1:0]                  s_addr_rd_o,
+    output          [NUMBER_BRAM-1:0]                             ID_bram_selected_rd_o
+
+);  
+
+    wire [NUMBER_BRAM-1:0] ID_bram_selected_rd;
+    
+
+    genvar  bram_count;
+
+    //decoder addr_rd   
+    generate
+        for (bram_count = 0; bram_count < NUMBER_BRAM; bram_count = bram_count + 1) begin
+            assign ID_bram_selected_rd[bram_count] = ((addr_rd >= DEPTH_SIZE*bram_count) && (addr_rd < (DEPTH_SIZE*bram_count) + DEPTH_SIZE));
+        end
+    endgenerate
+
+
+    //connect awaddr_rd master to bram
+    generate
+        for (bram_count = 0; bram_count < NUMBER_BRAM; bram_count = bram_count + 1) begin
+            assign s_addr_rd_o[((ADDR_WIDTH*bram_count)+ADDR_WIDTH-1) -: ADDR_WIDTH] = (ID_bram_selected_rd[bram_count]) ?  addr_rd : 0;
+        end
+    endgenerate
+
+    assign ID_bram_selected_rd_o = ID_bram_selected_rd;
+
+
+endmodule
+
+
 module encoder_frame_buffer#(
     parameter DATA_WIDTH    = 16, //WORD_SIZE
     parameter NUMBER_BRAM   = 3
@@ -236,10 +506,10 @@ module encoder_frame_buffer#(
 endmodule
 
 
-module block_ram_frame_buffer#(
+module block_ram_frame_buffer0#(
     parameter ADDR_WIDTH = 32,
     parameter DATA_WIDTH = 32,
-    parameter DEPTH_SIZE = 262144 // size bram = (WORD_SIZE * DEPTH_SIZE)/8 (Byte) 
+    parameter DEPTH_SIZE = 1024 // size bram = (WORD_SIZE * DEPTH_SIZE)/8 (Byte) 
 )(
     input                               clk_i,
 
@@ -265,22 +535,91 @@ module block_ram_frame_buffer#(
 endmodule
 
 
-module register_DFF_dvp#(
-    SIZE_BITS = 32
-)(  
-    input                           clk_i,
-    input                           resetn_i,
-    input       [SIZE_BITS-1:0]     D_i,
+module block_ram_frame_buffer1#(
+    parameter ADDR_WIDTH = 32,
+    parameter DATA_WIDTH = 32,
+    parameter DEPTH_SIZE = 1024 // size bram = (WORD_SIZE * DEPTH_SIZE)/8 (Byte) 
+)(
+    input                               clk_i,
 
-    output  reg [SIZE_BITS-1:0]     Q_o
-);
-    always @(posedge clk_i, negedge resetn_i) begin
-        if (~resetn_i) begin
-            Q_o <= 0;
+    input                               wr_i0,
+    input                               wr_i1,
+
+    input           [ADDR_WIDTH-1:0]    addr_wr0,
+    input           [ADDR_WIDTH-1:0]    addr_wr1,
+    input           [ADDR_WIDTH-1:0]    addr_rd0,
+    input           [ADDR_WIDTH-1:0]    addr_rd1,
+
+    input           [DATA_WIDTH-1:0]    Data_in0,
+    input           [DATA_WIDTH-1:0]    Data_in1,
+    output  reg     [DATA_WIDTH-1:0]    Data_out0,
+    output  reg     [DATA_WIDTH-1:0]    Data_out1
+
+    );
+
+    reg [DATA_WIDTH-1:0] mem [0:DEPTH_SIZE-1]; //524_288 byte
+
+
+    // port 0
+    always @(posedge clk_i) begin
+        if(wr_i0) begin
+            mem[addr_wr0] <= Data_in0;
         end
-        else begin
-            Q_o <= D_i;
+        Data_out0 <= mem[addr_rd0];
+        
+    end
+
+
+    // port 1
+    always @(posedge clk_i) begin
+        if(wr_i1) begin
+            mem[addr_wr1] <= Data_in1;
         end
+        Data_out1 <= mem[addr_rd1];
     end
 
 endmodule
+
+
+module block_ram_frame_buffer2#(
+    parameter ADDR_WIDTH = 32,
+    parameter DATA_WIDTH = 32,
+    parameter DEPTH_SIZE = 1024 // size bram = (WORD_SIZE * DEPTH_SIZE)/8 (Byte) 
+)(
+    input                               clk_i,
+
+    input                               wr_i0,
+
+    input           [ADDR_WIDTH-1:0]    addr_wr0,
+
+    input           [ADDR_WIDTH-1:0]    addr_rd0,
+    input           [ADDR_WIDTH-1:0]    addr_rd1,
+
+    input           [DATA_WIDTH-1:0]    Data_in0,
+
+    output  reg     [DATA_WIDTH-1:0]    Data_out0,
+    output  reg     [DATA_WIDTH-1:0]    Data_out1
+
+    );
+
+    reg [DATA_WIDTH-1:0] mem [0:DEPTH_SIZE-1]; //524_288 byte
+
+
+    // port 0
+    always @(posedge clk_i) begin
+        if(wr_i0) begin
+            mem[addr_wr0] <= Data_in0;
+        end
+        Data_out0 <= mem[addr_rd0];
+        
+    end
+
+
+    // port 1
+    always @(posedge clk_i) begin
+        Data_out1 <= mem[addr_rd1];
+    end
+
+endmodule
+
+
